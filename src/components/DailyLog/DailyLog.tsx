@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { format } from 'date-fns';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, type Todo } from '@/lib/database/db';
+import { db, type Todo, type Category } from '@/lib/database/db';
 import { v4 as uuidv4 } from 'uuid';
 import TaskModal from '../TaskModal/TaskModal';
 import CategorySection from './CategorySection';
@@ -16,6 +16,9 @@ interface DailyLogProps {
 export default function DailyLog({ selectedDate, onDateChange }: DailyLogProps) {
   const [generalNote, setGeneralNote] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [draggedCategory, setDraggedCategory] = useState<string | null>(null);
+  const [dragOverCategory, setDragOverCategory] = useState<string | null>(null);
+  const [optimisticCategories, setOptimisticCategories] = useState<string[]>([]);
 
   const dateKey = format(selectedDate, 'yyyy-MM-dd');
   
@@ -25,7 +28,7 @@ export default function DailyLog({ selectedDate, onDateChange }: DailyLogProps) 
   );
 
   const categories = useLiveQuery(
-    () => db.categories.toArray(),
+    () => db.categories.toArray().then(cats => cats.sort((a, b) => (a.order ?? 0) - (b.order ?? 0))),
     []
   );
 
@@ -56,18 +59,19 @@ export default function DailyLog({ selectedDate, onDateChange }: DailyLogProps) 
     category: string;
     time_expected?: string;
   }) => {
+    const currentLog = await db.daily_logs.get(dateKey);
+    const todos = currentLog?.todos || [];
+    
     const newTask: Todo = {
       id: uuidv4(),
       date: dateKey,
       ...taskData,
       is_completed: false,
       created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
+      order: todos.length
     };
 
-    const currentLog = await db.daily_logs.get(dateKey);
-    const todos = currentLog?.todos || [];
-    
     await db.daily_logs.put({
       date: dateKey,
       general_note: currentLog?.general_note || '',
@@ -133,6 +137,32 @@ export default function DailyLog({ selectedDate, onDateChange }: DailyLogProps) 
     });
   };
 
+  const handleReorderTodos = useCallback(async (categoryName: string, reorderedTodos: Todo[]) => {
+    const currentLog = await db.daily_logs.get(dateKey);
+    if (!currentLog) return;
+
+    // Update todos with new order
+    const updatedTodos = currentLog.todos.map(todo => {
+      const reorderedTodo = reorderedTodos.find(rt => rt.id === todo.id);
+      return reorderedTodo ? { ...reorderedTodo, updated_at: new Date().toISOString() } : todo;
+    });
+
+    await db.daily_logs.put({
+      ...currentLog,
+      todos: updatedTodos
+    });
+  }, [dateKey]);
+
+  const handleReorderCategories = useCallback(async (reorderedCategories: Category[]) => {
+    // Optimistic update
+    setOptimisticCategories(reorderedCategories.map(c => c.name));
+    
+    // Update all categories with new order
+    for (let i = 0; i < reorderedCategories.length; i++) {
+      await db.categories.update(reorderedCategories[i].name, { order: i });
+    }
+  }, []);
+
   const todosByCategory = (dailyLog?.todos || []).reduce((acc, todo) => {
     if (!acc[todo.category]) {
       acc[todo.category] = [];
@@ -140,6 +170,86 @@ export default function DailyLog({ selectedDate, onDateChange }: DailyLogProps) 
     acc[todo.category].push(todo);
     return acc;
   }, {} as Record<string, Todo[]>);
+
+  const orderedCategoryNames = optimisticCategories.length > 0 
+    ? optimisticCategories.filter(name => todosByCategory[name])
+    : categories
+        ? categories
+            .filter(cat => todosByCategory[cat.name])
+            .map(cat => cat.name)
+            .sort((a, b) => {
+              const catA = categories.find(c => c.name === a);
+              const catB = categories.find(c => c.name === b);
+              return (catA?.order ?? 0) - (catB?.order ?? 0);
+            })
+        : Object.keys(todosByCategory);
+
+  const handleDragStartCategory = useCallback((e: React.DragEvent, categoryName: string) => {
+    setDraggedCategory(categoryName);
+    e.dataTransfer.effectAllowed = 'move';
+  }, []);
+
+  const handleDragOverCategory = useCallback((e: React.DragEvent, categoryName: string) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    
+    if (draggedCategory && categoryName !== draggedCategory) {
+      const draggedIndex = orderedCategoryNames.indexOf(draggedCategory);
+      const overIndex = orderedCategoryNames.indexOf(categoryName);
+      
+      if (draggedIndex !== -1 && overIndex !== -1 && draggedIndex !== overIndex) {
+        // Optimistic update for smooth visual feedback
+        const newNames = [...orderedCategoryNames];
+        const [draggedName] = newNames.splice(draggedIndex, 1);
+        newNames.splice(overIndex, 0, draggedName);
+        setOptimisticCategories(newNames);
+      }
+    }
+    
+    setDragOverCategory(categoryName);
+  }, [draggedCategory, orderedCategoryNames]);
+
+  const handleDragLeaveCategory = useCallback(() => {
+    setDragOverCategory(null);
+  }, []);
+
+  const handleDropCategory = useCallback((e: React.DragEvent, dropCategoryName: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (!draggedCategory || draggedCategory === dropCategoryName) {
+      setDraggedCategory(null);
+      setDragOverCategory(null);
+      return;
+    }
+
+    const draggedIndex = orderedCategoryNames.indexOf(draggedCategory);
+    const dropIndex = orderedCategoryNames.indexOf(dropCategoryName);
+
+    if (draggedIndex === -1 || dropIndex === -1) {
+      setDraggedCategory(null);
+      setDragOverCategory(null);
+      return;
+    }
+
+    const reorderedNames = [...orderedCategoryNames];
+    const [draggedName] = reorderedNames.splice(draggedIndex, 1);
+    reorderedNames.splice(dropIndex, 0, draggedName);
+
+    // Create reordered categories
+    const reorderedCategories = reorderedNames
+      .map(name => categories?.find(c => c.name === name))
+      .filter((cat): cat is Category => cat !== undefined);
+
+    handleReorderCategories(reorderedCategories);
+    setDraggedCategory(null);
+    setDragOverCategory(null);
+  }, [draggedCategory, orderedCategoryNames, categories, handleReorderCategories]);
+
+  const handleDragEndCategory = useCallback(() => {
+    setDraggedCategory(null);
+    setDragOverCategory(null);
+  }, []);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -229,17 +339,34 @@ export default function DailyLog({ selectedDate, onDateChange }: DailyLogProps) 
           </div>
 
           {categories && Object.keys(todosByCategory).length > 0 ? (
-            Object.keys(todosByCategory).map(categoryName => {
+            orderedCategoryNames.map(categoryName => {
               const category = categories.find(c => c.name === categoryName);
               return (
-                <CategorySection
+                <div
                   key={categoryName}
-                  category={category || { name: categoryName, color_code: '#6B7280', created_at: new Date().toISOString() }}
-                  todos={todosByCategory[categoryName]}
-                  onToggleComplete={handleToggleComplete}
-                  onMoveToTomorrow={handleMoveToTomorrow}
-                  onDelete={handleDeleteTask}
-                />
+                  draggable
+                  onDragStart={(e) => handleDragStartCategory(e, categoryName)}
+                  onDragOver={(e) => handleDragOverCategory(e, categoryName)}
+                  onDragLeave={handleDragLeaveCategory}
+                  onDrop={(e) => handleDropCategory(e, categoryName)}
+                  onDragEnd={handleDragEndCategory}
+                  className={`transition-all duration-200 ease-out transform ${
+                    draggedCategory === categoryName 
+                      ? 'opacity-40 scale-95' 
+                      : dragOverCategory === categoryName && draggedCategory
+                      ? 'border-l-4 border-blue-500 pl-2 bg-gray-800 bg-opacity-30 rounded-lg my-2'
+                      : ''
+                  }`}
+                >
+                  <CategorySection
+                    category={category || { name: categoryName, color_code: '#6B7280', created_at: new Date().toISOString() }}
+                    todos={todosByCategory[categoryName]}
+                    onToggleComplete={handleToggleComplete}
+                    onMoveToTomorrow={handleMoveToTomorrow}
+                    onDelete={handleDeleteTask}
+                    onReorderTodos={(reorderedTodos) => handleReorderTodos(categoryName, reorderedTodos)}
+                  />
+                </div>
               );
             })
           ) : (

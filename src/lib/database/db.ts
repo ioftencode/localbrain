@@ -9,6 +9,7 @@ export interface Todo {
   is_completed: boolean;
   created_at: string;
   updated_at: string;
+  order?: number;
 }
 
 export interface DailyLog {
@@ -22,6 +23,7 @@ export interface Category {
   color_code: string;
   icon?: string;
   created_at: string;
+  order?: number;
 }
 
 class DailyLogDB extends Dexie {
@@ -48,27 +50,32 @@ class DailyLogDB extends Dexie {
         {
           name: 'Learning',
           color_code: '#6bf65c',
-          created_at: new Date().toISOString()
+          created_at: new Date().toISOString(),
+          order: 0
         },
         {
           name: 'College External',
           color_code: '#f63b95',
-          created_at: new Date().toISOString()
+          created_at: new Date().toISOString(),
+          order: 1
         },
         {
           name: 'Project',
           color_code: '#f4f65c',
-          created_at: new Date().toISOString()
+          created_at: new Date().toISOString(),
+          order: 2
         },
         {
           name: 'Personal',
           color_code: '#1091b9',
-          created_at: new Date().toISOString()
+          created_at: new Date().toISOString(),
+          order: 3
         },
         {
           name: 'Health',
           color_code: '#EF4444',
-          created_at: new Date().toISOString()
+          created_at: new Date().toISOString(),
+          order: 4
         },
         
       ]);
