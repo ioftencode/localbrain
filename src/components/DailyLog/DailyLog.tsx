@@ -254,7 +254,7 @@ export default function DailyLog({ selectedDate, onDateChange }: DailyLogProps) 
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'n' && (e.metaKey || e.ctrlKey)) {
+      if (e.key === 'x' && e.altKey) {
         e.preventDefault();
         setIsModalOpen(true);
       }
@@ -334,7 +334,7 @@ export default function DailyLog({ selectedDate, onDateChange }: DailyLogProps) 
               className="px-6 py-3 bg-blue-600 rounded-full hover:bg-blue-700 transition-colors flex items-center gap-2"
             >
               <span className="text-xl">+</span>
-              <span>Add Task (⌘+N)</span>
+              <span>Add Task (Alt+X)</span>
             </button>
           </div>
 

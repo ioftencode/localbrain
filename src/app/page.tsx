@@ -33,9 +33,9 @@ export default function Home() {
           </div>
           
           <div className="text-sm text-gray-400">
-            <kbd className="px-2 py-1 bg-gray-800 rounded">⌘</kbd>
+            <kbd className="px-2 py-1 bg-gray-800 rounded">Alt</kbd>
             <span className="mx-1">+</span>
-            <kbd className="px-2 py-1 bg-gray-800 rounded">N</kbd>
+            <kbd className="px-2 py-1 bg-gray-800 rounded">X</kbd>
             <span className="ml-2">New Task</span>
           </div>
         </div>
@@ -61,7 +61,7 @@ export default function Home() {
                 <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0 text-white font-semibold">
                   1
                 </div>
-                <p className="text-gray-300">Click <kbd className="px-2 py-1 bg-gray-700 rounded text-sm">+ Add Task</kbd> or press <kbd className="px-2 py-1 bg-gray-700 rounded text-sm">⌘+N</kbd></p>
+                <p className="text-gray-300">Click <kbd className="px-2 py-1 bg-gray-700 rounded text-sm">+ Add Task</kbd> or press <kbd className="px-2 py-1 bg-gray-700 rounded text-sm">Alt+X</kbd></p>
               </div>
               <div className="flex items-start gap-3">
                 <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0 text-white font-semibold">
