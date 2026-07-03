@@ -5,6 +5,7 @@ import DailyLog from '@/components/DailyLog/DailyLog';
 import CalendarView from '@/components/CalendarView/CalendarView';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/lib/database/db';
+import VaultApp from '@/vault/components/VaultApp';
 
 export default function Home() {
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -19,6 +20,7 @@ export default function Home() {
 
   return (
     <>
+      <VaultApp />
       {/* Top Navigation */}
       <nav className="fixed top-0 left-0 right-0 bg-gray-900 border-b border-gray-800 z-40">
         <div className="max-w-6xl mx-auto px-4 py-3 flex justify-between items-center">
